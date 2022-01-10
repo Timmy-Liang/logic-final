@@ -1,0 +1,103 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 2022/01/04 16:42:02
+// Design Name: 
+// Module Name: top
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module top(
+	output pmod_1,
+	output pmod_2,
+	output pmod_4,
+	inout wire PS2_DATA,
+	inout wire PS2_CLK,
+	input wire rst,
+	input wire clk,
+	output test
+    );
+ 
+	reg [9:0] last_key;
+	wire shift_down;
+	wire [511:0] key_down;
+	wire [8:0] last_change;
+	wire been_ready;
+	
+	parameter DUTY_BEST = 10'd512;	//duty cycle=50%
+    wire [31:0] freq;
+    wire[7:0] ibeatNum;
+    wire beatFreq;
+assign test = (ibeatNum==8'd0)?1'b0:1'b1;
+assign pmod_2 = 1'd1;	//no gain(6dB)
+assign pmod_4 = 1'd1;	//turn-on
+
+    KeyboardDecoder key_de (
+		.key_down(key_down),
+		.last_change(last_change),
+		.key_valid(been_ready),
+		.PS2_DATA(PS2_DATA),
+		.PS2_CLK(PS2_CLK),
+		.rst(rst),
+		.clk(clk)
+	);
+    piano p(ibeatNum,rst,clk,key_down,last_change);
+    
+    Music music00 ( .ibeatNum(ibeatNum),
+				.tone(freq)
+);
+
+// Generate particular freq. signal
+    PWM_gen toneGen ( .clk(clk), 
+				  .reset(rst), 
+				  .freq(freq),
+				  .duty(DUTY_BEST), 
+				  .PWM(pmod_1)
+    );
+   
+endmodule
+
+
+module PWM_gen (
+    input wire clk,
+    input wire reset,
+	input [31:0] freq,
+    input [9:0] duty,
+    output reg PWM
+);
+
+wire [31:0] count_max = 100_000_000 / freq;
+wire [31:0] count_duty = count_max * duty / 1024;
+reg [31:0] count;
+    
+always @(posedge clk, posedge reset) begin
+    if (reset) begin
+        count <= 0;
+        PWM <= 0;
+    end else if (count < count_max) begin
+        count <= count + 1;
+		if(count < count_duty)
+            PWM <= 1;
+        else
+            PWM <= 0;
+    end else begin
+        count <= 0;
+        PWM <= 0;
+    end
+end
+
+endmodule
+
